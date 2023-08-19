@@ -181,7 +181,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    this->bus_voltage_sensor_->publish_state(uint16_t(to_decimal(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
+    this->bus_voltage_sensor_->publish_state(uint16_t(to_decimal(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION));
   }
 
   if (this->temperature_sensor_ != nullptr) {
