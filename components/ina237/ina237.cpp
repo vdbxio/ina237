@@ -10,6 +10,22 @@
 #include <type_traits>
 #include <bitset>
 
+namespace {
+
+// flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
+// we read the MSB to see if we add a negative value or not.
+// NOTE: Unsure if the first bit is going to actually be the MSB 🙃
+int16_t to_decimal(uint16_t value) noexcept {
+  std::bitset<16> bits { value };
+  auto negative = bits[0];
+  bits.flip();
+  auto result = int16_t(bits.to_ulong() + 1);
+  if (negative) { return -result; }
+  return result;
+}
+
+} /* nameless namespace */
+
 namespace esphome {
 namespace ina237 {
 
@@ -154,10 +170,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    // flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
-    std::bitset<16> scratch { raw_shunt_voltage };
-    scratch.flip();
-    auto value = int16_t(scratch.to_ulong() + 1) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
+    auto value = to_decimal(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
     // We publish this as milli-volts
     this->shunt_voltage_sensor_->publish_state(value * 1000.0f);
   }
@@ -168,7 +181,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    this->bus_voltage_sensor_->publish_state(raw_bus_voltage * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
+    this->bus_voltage_sensor_->publish_state(uint16_t(to_decimal(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
   }
 
   if (this->temperature_sensor_ != nullptr) {
@@ -182,7 +195,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    auto value = static_cast<float>(raw_temperature >>= 4) * INA237_TEMPERATURE_LSB_RESOLUTION;
+    auto value = to_decimal(static_cast<float>(raw_temperature >>= 4)) * INA237_TEMPERATURE_LSB_RESOLUTION;
     this->temperature_sensor_->publish_state(value);
   }
 
@@ -192,8 +205,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    // TODO: Do we need to byteswap the raw_current value?
-    this->current_sensor_->publish_state(raw_current * this->current_lsb_() * 0.2f);
+    this->current_sensor_->publish_state(to_decimal(raw_current) * this->current_lsb_() * 0.2f);
   }
 
   if (this->power_sensor_ != nullptr) {
@@ -203,7 +215,6 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    // TODO: Do we need to byte swap the raw_power value post-memcpy?
     std::memcpy(&raw_power, array, 3);
     this->power_sensor_->publish_state(static_cast<float>(__builtin_bswap32(raw_power)) * this->current_lsb_() * 0.2f);
   }
