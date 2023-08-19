@@ -38,9 +38,9 @@ template<class T> typename std::underlying_type<T>::type enum_cast(T const &valu
 [[maybe_unused]] static constexpr uint8_t INA237_REGISTER_POWER_LIMIT = 0x11;
 [[maybe_unused]] static constexpr uint8_t INA237_REGISTER_MANUFACTURER_ID = 0x3e;
 
-static constexpr float INA237_BUS_VOLTAGE_LSB_RESOLUTION = 3.125e-3f;
 static constexpr float INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[2] = {5e-6f, 1.25e-6f};
 static constexpr float INA237_TEMPERATURE_LSB_RESOLUTION = 125e-3f;
+static constexpr float INA237_BUS_VOLTAGE_LSB_RESOLUTION = 3.125e-3f;
 
 /* Reversed in order according to 7.6.1.1 table because of endian-ness */
 struct INA237Config {
@@ -62,8 +62,8 @@ struct INA237ADCConfig {
 };
 
 struct INA237Temperature {
-  uint16_t reserved: 4;
-  uint16_t dietemp: 12;
+  uint16_t reserved : 4;
+  uint16_t dietemp : 12;
 };
 
 void INA237Component::setup() {
@@ -142,6 +142,7 @@ void INA237Component::dump_config() {
 float INA237Component::get_setup_priority() const { return setup_priority::DATA; }
 
 // Equation 2 => Current_LSB = Maximum Expected Current / 2**15
+// max current times 2**-15 is the same equation.
 float INA237Component::current_lsb_() const { return ldexp(this->max_current_, -15); }
 // Rshunt is the resistance value of the external shunt used to develop the differential voltage
 float INA237Component::r_shunt_() const { return this->shunt_resistance_ohm_ * (this->adc_range_ ? 4 : 1); }
@@ -153,8 +154,12 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    auto value = int16_t(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
-    this->shunt_voltage_sensor_->publish_state(value);
+    // flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
+    std::bitset<16> scratch { raw_shunt_voltage };
+    scratch.flip();
+    auto value = int16_t(scratch.to_ulong() + 1) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
+    // We publish this as milli-volts
+    this->shunt_voltage_sensor_->publish_state(value * 1000.0f);
   }
 
   if (this->bus_voltage_sensor_ != nullptr) {
@@ -167,11 +172,11 @@ void INA237Component::update() {
   }
 
   if (this->temperature_sensor_ != nullptr) {
-    //INA237Temperature raw_temperature {};
-    //if (!this->read_structure(INA237_REGISTER_TEMPERATURE, raw_temperature)) {
-    //  this->status_set_warning();
-    //  return;
-    //}
+    // INA237Temperature raw_temperature {};
+    // if (!this->read_structure(INA237_REGISTER_TEMPERATURE, raw_temperature)) {
+    //   this->status_set_warning();
+    //   return;
+    // }
     uint16_t raw_temperature;
     if (!this->read_byte_16(INA237_REGISTER_TEMPERATURE, &raw_temperature)) {
       this->status_set_warning();
