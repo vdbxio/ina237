@@ -14,7 +14,7 @@ namespace {
 
 // flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
 // we read the MSB to see if we add a negative value or not.
-template <class T=int16_t, class=::std::enable_if_t<sizeof(T) == 2>>
+template <class T=int16_t, typename ::std::enable_if<sizeof(T) == 2, int>::type=__LINE__>
 T to_decimal(uint16_t value) noexcept {
   std::bitset<16> bits { value };
   auto negative = bits[15];
