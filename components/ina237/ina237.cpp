@@ -24,7 +24,7 @@ uint16_t to_unsigned_decimal(uint16_t value) noexcept {
 // NOTE: Unsure if the first bit is going to actually be the MSB 🙃
 int16_t to_signed_decimal(uint16_t value) noexcept {
   std::bitset<16> bits { value };
-  auto negative = bits[0];
+  auto negative = bits[15];
   bits.flip();
   auto result = int16_t(bits.to_ulong() + 1);
   if (negative) { return -result; }
