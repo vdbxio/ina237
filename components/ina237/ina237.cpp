@@ -164,7 +164,7 @@ optional<float> INA237Component::read_current() {
   if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
     return nullopt;
   }
-  return ldexpf(to_decimal(raw_current), -15);
+  return ldexpf(to_decimal(raw_current) * 10.0f, -15);
 }
 
 // Equation 2 => Max_Current_LSB = Maximum Expected Current / 2**15
