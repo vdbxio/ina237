@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include "esphome/core/component.h"
+#include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -54,7 +55,9 @@ struct INA237Component : public PollingComponent, public i2c::I2CDevice {
   void set_overcurrent_threshold(float value) {}
 
  protected:
-  float current_lsb_() const;
+  optional<float> read_current();
+
+  float max_current_lsb_() const;
   float r_shunt_() const;
 
   float shunt_resistance_ohm_;

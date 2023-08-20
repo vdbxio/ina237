@@ -1,6 +1,7 @@
 #include "ina237.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -125,7 +126,7 @@ void INA237Component::setup_configuration() {
   //  }
   //
   // Equation 1 => SHUNT_CAL = (819.2 * 10**6) * CURRENT_LSB * Rshunt
-  auto shunt_calibration = uint16_t(819.2e6f * this->current_lsb_() * this->r_shunt_());
+  auto shunt_calibration = uint16_t(819.2e6f * this->max_current_lsb_() * this->r_shunt_());
 
   ESP_LOGVV(TAG, "Attempting to set shunt calibration register");
   if (!this->write_byte_16(INA237_REGISTER_SHUNT_CALIBIRATION, shunt_calibration)) {
@@ -157,9 +158,20 @@ void INA237Component::dump_config() {
 
 float INA237Component::get_setup_priority() const { return setup_priority::DATA; }
 
-// Equation 2 => Current_LSB = Maximum Expected Current / 2**15
+// Reads the current register, returns the converted value if possible, or nullopt if the read failed.
+optional<float> INA237Component::read_current() {
+  uint16_t raw_current {};
+  if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
+    return nullopt;
+  }
+  return ldexpf(to_decimal(raw_current), -15) * 0.2f;
+}
+
+// Equation 2 => Max_Current_LSB = Maximum Expected Current / 2**15
 // max current times 2**-15 is the same equation.
-float INA237Component::current_lsb_() const { return ldexp(this->max_current_, -15); }
+float INA237Component::max_current_lsb_() const { return ldexpf(this->max_current_, -15); }
+
+
 // Rshunt is the resistance value of the external shunt used to develop the differential voltage
 float INA237Component::r_shunt_() const { return this->shunt_resistance_ohm_ * (this->adc_range_ ? 4 : 1); }
 
@@ -200,15 +212,24 @@ void INA237Component::update() {
   }
 
   if (this->current_sensor_ != nullptr) {
-    uint16_t raw_current;
-    if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
+    auto current = this->read_current();
+    if (!current.has_value()) {
       this->status_set_warning();
       return;
     }
-    this->current_sensor_->publish_state(to_decimal(raw_current) * this->current_lsb_() * 0.2f);
+    this->current_sensor_->publish_state(*current);
   }
 
   if (this->power_sensor_ != nullptr) {
+    /* We cannot show the power unless we read from the current! */
+    auto current = this->current_sensor_ != nullptr
+      ? optional<float>{this->current_sensor_->get_raw_state()}
+      : this->read_current();
+    if (!current.has_value()) {
+      this->status_set_warning();
+      return;
+    }
+
     uint32_t raw_power = 0;
     uint8_t array[3] = {0};
     if (!this->read_bytes(INA237_REGISTER_POWER, array, 3)) {
@@ -216,7 +237,7 @@ void INA237Component::update() {
       return;
     }
     std::memcpy(&raw_power, array, 3);
-    this->power_sensor_->publish_state(static_cast<float>(__builtin_bswap32(raw_power)) * this->current_lsb_() * 0.2f);
+    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * *current);
   }
 
   this->status_clear_warning();
