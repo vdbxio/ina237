@@ -58,6 +58,8 @@ template<class T> typename std::underlying_type<T>::type enum_cast(T const &valu
 static constexpr float INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[2] = {5e-6f, 1.25e-6f};
 static constexpr float INA237_TEMPERATURE_LSB_RESOLUTION = 125e-3f;
 static constexpr float INA237_BUS_VOLTAGE_LSB_RESOLUTION = 3.125e-3f;
+static constexpr float INA237_CURRENT_LSB_RESOLUTION = 305.176e-6f;
+static constexpr float INA237_POWER_LSB_RESOLUTION = 61.035156e-6f;
 
 /* Reversed in order according to 7.6.1.1 table because of endian-ness */
 struct INA237Config {
@@ -158,15 +160,6 @@ void INA237Component::dump_config() {
 
 float INA237Component::get_setup_priority() const { return setup_priority::DATA; }
 
-// Reads the current register, returns the converted value if possible, or nullopt if the read failed.
-optional<float> INA237Component::read_current() {
-  uint16_t raw_current {};
-  if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
-    return nullopt;
-  }
-  return ldexpf(to_decimal(raw_current) * 10.0f, -15);
-}
-
 // Equation 2 => Max_Current_LSB = Maximum Expected Current / 2**15
 // max current times 2**-15 is the same equation.
 float INA237Component::max_current_lsb_() const { return ldexpf(this->max_current_, -15); }
@@ -212,24 +205,15 @@ void INA237Component::update() {
   }
 
   if (this->current_sensor_ != nullptr) {
-    auto current = this->read_current();
-    if (!current.has_value()) {
+    uint16_t raw_current;
+    if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
       this->status_set_warning();
       return;
     }
-    this->current_sensor_->publish_state(*current);
+    this->current_sensor_->publish_state(to_decimal(raw_current) * INA237_CURRENT_LSB_RESOLUTION);
   }
 
   if (this->power_sensor_ != nullptr) {
-    /* We cannot show the power unless we read from the current! */
-    auto current = this->current_sensor_ != nullptr
-      ? optional<float>{this->current_sensor_->get_raw_state()}
-      : this->read_current();
-    if (!current.has_value()) {
-      this->status_set_warning();
-      return;
-    }
-
     uint32_t raw_power = 0;
     uint8_t array[3] = {0};
     if (!this->read_bytes(INA237_REGISTER_POWER, array, 3)) {
@@ -237,7 +221,7 @@ void INA237Component::update() {
       return;
     }
     std::memcpy(&raw_power, array, 3);
-    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * *current * 0.2f);
+    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * INA237_POWER_LSB_RESOLUTION);
   }
 
   this->status_clear_warning();
