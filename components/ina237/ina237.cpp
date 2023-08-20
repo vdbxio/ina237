@@ -12,21 +12,14 @@
 
 namespace {
 
-uint16_t to_unsigned_decimal(uint16_t value) noexcept {
-  std::bitset<16> bits { value };
-  bits.flip();
-  auto result = uint16_t(bits.to_ulong() + 1);
-  return result;
-}
-
 // flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
 // we read the MSB to see if we add a negative value or not.
-// NOTE: Unsure if the first bit is going to actually be the MSB 🙃
-int16_t to_signed_decimal(uint16_t value) noexcept {
+template <class T=int16_t, class=::std::enable_if_t<sizeof(T) == 2>>
+T to_decimal(uint16_t value) noexcept {
   std::bitset<16> bits { value };
   auto negative = bits[15];
   bits.flip();
-  auto result = int16_t(bits.to_ulong() + 1);
+  T result = static_cast<T>(bits.to_ulong()) + 1;
   if (negative) { return -result; }
   return result;
 }
@@ -177,7 +170,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    auto value = to_signed_decimal(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
+    auto value = to_decimal(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
     // We publish this as milli-volts
     this->shunt_voltage_sensor_->publish_state(value * 1000.0f);
   }
@@ -188,7 +181,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    this->bus_voltage_sensor_->publish_state(to_unsigned_decimal(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
+    this->bus_voltage_sensor_->publish_state(to_decimal<uint16_t>(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
   }
 
   if (this->temperature_sensor_ != nullptr) {
@@ -202,7 +195,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    auto value = static_cast<float>(to_signed_decimal(raw_temperature >>= 4)) * INA237_TEMPERATURE_LSB_RESOLUTION;
+    auto value = static_cast<float>(to_decimal(raw_temperature >>= 4)) * INA237_TEMPERATURE_LSB_RESOLUTION;
     this->temperature_sensor_->publish_state(value);
   }
 
@@ -212,7 +205,7 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    this->current_sensor_->publish_state(to_signed_decimal(raw_current) * this->current_lsb_() * 0.2f);
+    this->current_sensor_->publish_state(to_decimal(raw_current) * this->current_lsb_() * 0.2f);
   }
 
   if (this->power_sensor_ != nullptr) {
