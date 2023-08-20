@@ -214,14 +214,13 @@ void INA237Component::update() {
   }
 
   if (this->power_sensor_ != nullptr) {
-    uint32_t raw_power = 0;
     uint8_t array[3] = {0};
     if (!this->read_bytes(INA237_REGISTER_POWER, array, 3)) {
       this->status_set_warning();
       return;
     }
-    std::memcpy(&raw_power, array, 3);
-    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * INA237_POWER_LSB_RESOLUTION);
+    auto power = static_cast<float>(encode_uint24(array[0], array[1], array[2]));
+    this->power_sensor_->publish_state(power * INA237_POWER_LSB_RESOLUTION);
   }
 
   this->status_clear_warning();
