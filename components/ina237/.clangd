@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - -Wconversion
+    - -Wextra
+    - -Wall
+    - -I../../../esphome
+    - -I../../../esphome/.esphome/build/pwrtool500-219-demo/.piolibdeps/pwrtool500-219-demo/ArduinoJson/src
