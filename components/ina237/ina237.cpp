@@ -164,7 +164,7 @@ optional<float> INA237Component::read_current() {
   if (!this->read_byte_16(INA237_REGISTER_CURRENT, &raw_current)) {
     return nullopt;
   }
-  return ldexpf(to_decimal(raw_current), -15) * 0.2f;
+  return ldexpf(to_decimal(raw_current), -15);
 }
 
 // Equation 2 => Max_Current_LSB = Maximum Expected Current / 2**15
@@ -237,7 +237,7 @@ void INA237Component::update() {
       return;
     }
     std::memcpy(&raw_power, array, 3);
-    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * *current);
+    this->power_sensor_->publish_state(static_cast<float>(byteswap(raw_power)) * *current * 0.2f);
   }
 
   this->status_clear_warning();
