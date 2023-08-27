@@ -38,8 +38,23 @@ struct INA237Component : public PollingComponent, public i2c::I2CDevice {
   void set_power_sensor(sensor::Sensor *value) { this->power_sensor_ = value; }
   void set_adc_range(INA237ADCRange value) { this->adc_range_ = value; }
 
+  // no-ops for now
+  // TODO: Change this to maybe use `std::chrono`?
+  void set_conversion_delay(uint8_t value) {}
+
+  void set_shunt_undervoltage_threshold(float value) {}
+  void set_shunt_overvoltage_threshold(float value) {}
+
+  void set_bus_undervoltage_threshold(float value) {}
+  void set_bus_overvoltage_threshold(float value) {}
+
+  void set_temperature_overlimit_threshold(float value) {}
+  void set_power_overlimit_threshold(float value) {}
+  void set_undercurrent_threshold(float value) {}
+  void set_overcurrent_threshold(float value) {}
+
  protected:
-  float current_lsb_() const;
+  float max_current_lsb_() const;
   float r_shunt_() const;
 
   float shunt_resistance_ohm_;

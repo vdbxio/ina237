@@ -24,6 +24,8 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
 )
 
+UNIT_MILLIVOLT = "mV"
+
 DEPENDENCIES = ["i2c"]
 
 ina237_ns = cg.esphome_ns.namespace("ina237")
@@ -45,8 +47,8 @@ CONFIG_SCHEMA = (
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
+            unit_of_measurement=UNIT_MILLIVOLT,
+            accuracy_decimals=3,
             device_class=DEVICE_CLASS_VOLTAGE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),

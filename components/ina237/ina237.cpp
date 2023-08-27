@@ -1,6 +1,7 @@
 #include "ina237.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -9,6 +10,22 @@
 #include <cstdint>
 #include <type_traits>
 #include <bitset>
+
+namespace {
+
+// flip all bits, add 1 to obtain the binary value, then convert to decimal from there.
+// we read the MSB to see if we add a negative value or not.
+template <class T=int16_t, typename ::std::enable_if<sizeof(T) == 2, int>::type=__LINE__>
+T to_decimal(uint16_t value) noexcept {
+  std::bitset<16> bits { value };
+  auto negative = bits[15];
+  bits.flip();
+  T result = static_cast<T>(bits.to_ulong()) + 1;
+  if (negative) { return -result; }
+  return result;
+}
+
+} /* nameless namespace */
 
 namespace esphome {
 namespace ina237 {
@@ -38,9 +55,11 @@ template<class T> typename std::underlying_type<T>::type enum_cast(T const &valu
 [[maybe_unused]] static constexpr uint8_t INA237_REGISTER_POWER_LIMIT = 0x11;
 [[maybe_unused]] static constexpr uint8_t INA237_REGISTER_MANUFACTURER_ID = 0x3e;
 
-static constexpr float INA237_BUS_VOLTAGE_LSB_RESOLUTION = 3.125e-3f;
 static constexpr float INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[2] = {5e-6f, 1.25e-6f};
 static constexpr float INA237_TEMPERATURE_LSB_RESOLUTION = 125e-3f;
+static constexpr float INA237_BUS_VOLTAGE_LSB_RESOLUTION = 3.125e-3f;
+static constexpr float INA237_CURRENT_LSB_RESOLUTION = 305.176e-6f;
+static constexpr float INA237_POWER_LSB_RESOLUTION = 61.035156e-6f;
 
 /* Reversed in order according to 7.6.1.1 table because of endian-ness */
 struct INA237Config {
@@ -62,8 +81,8 @@ struct INA237ADCConfig {
 };
 
 struct INA237Temperature {
-  uint16_t reserved: 4;
-  uint16_t dietemp: 12;
+  uint16_t reserved : 4;
+  uint16_t dietemp : 12;
 };
 
 void INA237Component::setup() {
@@ -109,7 +128,7 @@ void INA237Component::setup_configuration() {
   //  }
   //
   // Equation 1 => SHUNT_CAL = (819.2 * 10**6) * CURRENT_LSB * Rshunt
-  auto shunt_calibration = uint16_t(819.2e6f * this->current_lsb_() * this->r_shunt_());
+  auto shunt_calibration = uint16_t(819.2e6f * this->max_current_lsb_() * this->r_shunt_());
 
   ESP_LOGVV(TAG, "Attempting to set shunt calibration register");
   if (!this->write_byte_16(INA237_REGISTER_SHUNT_CALIBIRATION, shunt_calibration)) {
@@ -141,8 +160,11 @@ void INA237Component::dump_config() {
 
 float INA237Component::get_setup_priority() const { return setup_priority::DATA; }
 
-// Equation 2 => Current_LSB = Maximum Expected Current / 2**15
-float INA237Component::current_lsb_() const { return ldexp(this->max_current_, -15); }
+// Equation 2 => Max_Current_LSB = Maximum Expected Current / 2**15
+// max current times 2**-15 is the same equation.
+float INA237Component::max_current_lsb_() const { return ldexpf(this->max_current_, -15); }
+
+
 // Rshunt is the resistance value of the external shunt used to develop the differential voltage
 float INA237Component::r_shunt_() const { return this->shunt_resistance_ohm_ * (this->adc_range_ ? 4 : 1); }
 
@@ -153,8 +175,9 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    auto value = int16_t(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
-    this->shunt_voltage_sensor_->publish_state(value);
+    auto value = to_decimal(raw_shunt_voltage) * INA237_SHUNT_VOLTAGE_LSB_RESOLUTION[this->adc_range_];
+    // We publish this as milli-volts
+    this->shunt_voltage_sensor_->publish_state(value * 1000.0f);
   }
 
   if (this->bus_voltage_sensor_ != nullptr) {
@@ -163,21 +186,21 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    this->bus_voltage_sensor_->publish_state(raw_bus_voltage * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
+    this->bus_voltage_sensor_->publish_state(to_decimal<uint16_t>(raw_bus_voltage) * INA237_BUS_VOLTAGE_LSB_RESOLUTION);
   }
 
   if (this->temperature_sensor_ != nullptr) {
-    //INA237Temperature raw_temperature {};
-    //if (!this->read_structure(INA237_REGISTER_TEMPERATURE, raw_temperature)) {
-    //  this->status_set_warning();
-    //  return;
-    //}
+    // INA237Temperature raw_temperature {};
+    // if (!this->read_structure(INA237_REGISTER_TEMPERATURE, raw_temperature)) {
+    //   this->status_set_warning();
+    //   return;
+    // }
     uint16_t raw_temperature;
     if (!this->read_byte_16(INA237_REGISTER_TEMPERATURE, &raw_temperature)) {
       this->status_set_warning();
       return;
     }
-    auto value = static_cast<float>(raw_temperature >>= 4) * INA237_TEMPERATURE_LSB_RESOLUTION;
+    auto value = static_cast<float>(to_decimal(raw_temperature >>= 4)) * INA237_TEMPERATURE_LSB_RESOLUTION;
     this->temperature_sensor_->publish_state(value);
   }
 
@@ -187,20 +210,17 @@ void INA237Component::update() {
       this->status_set_warning();
       return;
     }
-    // TODO: Do we need to byteswap the raw_current value?
-    this->current_sensor_->publish_state(raw_current * this->current_lsb_() * 0.2f);
+    this->current_sensor_->publish_state(to_decimal(raw_current) * INA237_CURRENT_LSB_RESOLUTION);
   }
 
   if (this->power_sensor_ != nullptr) {
-    uint32_t raw_power = 0;
     uint8_t array[3] = {0};
     if (!this->read_bytes(INA237_REGISTER_POWER, array, 3)) {
       this->status_set_warning();
       return;
     }
-    // TODO: Do we need to byte swap the raw_power value post-memcpy?
-    std::memcpy(&raw_power, array, 3);
-    this->power_sensor_->publish_state(static_cast<float>(__builtin_bswap32(raw_power)) * this->current_lsb_() * 0.2f);
+    auto power = static_cast<float>(encode_uint24(array[0], array[1], array[2]));
+    this->power_sensor_->publish_state(power * INA237_POWER_LSB_RESOLUTION);
   }
 
   this->status_clear_warning();
