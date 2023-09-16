@@ -98,6 +98,18 @@ void INA237Component::setup() {
 
   delay(1);
 
+  INA237ADCConfig adcconfig{};
+  adcconfig.mode = 0x0f; /* continuous bus voltage, shunt voltage, and temperature */
+  adcconfig.sample_average = 0x02; /* 16 samples */
+  adcconfig.temperature_conversion = 0x05; // default conversion time
+  adcconfig.shunt_conversion = 0x05;
+  adcconfig.bus_conversion = 0x05;
+  if (!this->write_structure(INA237_REGISTER_ADC_CONFIGURATION, adcconfig)) {
+    this->mark_failed();
+    return;
+  }
+
+
   this->setup_configuration();
 }
 
