@@ -72,12 +72,21 @@ struct INA237Config {
 };
 
 /* Reversed in order according to 7.6.1.2 table because of endian-ness */
+//struct INA237ADCConfig {
+//  uint16_t sample_average : 3;
+//  uint16_t temperature_conversion : 3;
+//  uint16_t shunt_conversion : 3;
+//  uint16_t bus_conversion : 3;
+//  uint16_t mode : 4;
+//};
+
+/* Nothing makes sense anymore */
 struct INA237ADCConfig {
-  uint16_t sample_average : 3;
-  uint16_t temperature_conversion : 3;
-  uint16_t shunt_conversion : 3;
-  uint16_t bus_conversion : 3;
   uint16_t mode : 4;
+  uint16_t bus_conversion : 3;
+  uint16_t shunt_conversion : 3;
+  uint16_t temperature_conversion : 3;
+  uint16_t sample_average : 3;
 };
 
 struct INA237Temperature {
