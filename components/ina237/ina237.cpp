@@ -82,11 +82,11 @@ struct INA237Config {
 
 /* Nothing makes sense anymore */
 struct INA237ADCConfig {
-  uint16_t mode : 4;
-  uint16_t bus_conversion : 3;
-  uint16_t shunt_conversion : 3;
-  uint16_t temperature_conversion : 3;
   uint16_t sample_average : 3;
+  uint16_t temperature_conversion : 3;
+  uint16_t shunt_conversion : 3;
+  uint16_t bus_conversion : 3;
+  uint16_t mode : 4;
 };
 
 struct INA237Temperature {
