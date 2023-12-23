@@ -34,7 +34,7 @@ sensor:
 ```
 ## TODO & Notes
 
-- Current and Power seem to be returning as 100x too small - more testing needed
+- ~~Current and Power seem to be returning as 100x too small - more testing needed~~
 - ADC Config needs to be fixed
       - gain doesn't work
       - need access to in-built conversion times & averaging settings
