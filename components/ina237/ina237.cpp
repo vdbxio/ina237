@@ -72,6 +72,15 @@ struct INA237Config {
 };
 
 /* Reversed in order according to 7.6.1.2 table because of endian-ness */
+//struct INA237ADCConfig {
+//  uint16_t sample_average : 3;
+//  uint16_t temperature_conversion : 3;
+//  uint16_t shunt_conversion : 3;
+//  uint16_t bus_conversion : 3;
+//  uint16_t mode : 4;
+//};
+
+/* Nothing makes sense anymore */
 struct INA237ADCConfig {
   uint16_t sample_average : 3;
   uint16_t temperature_conversion : 3;
@@ -97,6 +106,18 @@ void INA237Component::setup() {
   }
 
   delay(1);
+
+  INA237ADCConfig adcconfig{};
+  adcconfig.mode = 0x09; /* continuous bus voltage, shunt voltage, and temperature */
+  adcconfig.sample_average = 0x03; /* 16 samples */
+  adcconfig.temperature_conversion = 0x06; // default conversion time
+  adcconfig.shunt_conversion = 0x06;
+  adcconfig.bus_conversion = 0x06;
+  if (!this->write_structure(INA237_REGISTER_ADC_CONFIGURATION, adcconfig)) {
+    this->mark_failed();
+    return;
+  }
+
 
   this->setup_configuration();
 }
