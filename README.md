@@ -1,3 +1,6 @@
+# Deprecated 24.02
+Deprecated in favor of https://github.com/latonita/esphome-ina228
+
 # Overview
 
 This is the [INA237][1] External Component for ESPHome specifically for the [PwrTool 500][3] hardware from [VDBX.io][4]
